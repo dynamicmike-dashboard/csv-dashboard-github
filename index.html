@@ -1379,22 +1379,51 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             const { headers, records } = convert2DToObjects(gridToProcess);
             
             gHeaders = headers;
-            gParsedRecords = records;
-            gFilteredRecords = [...records];
             
             // Detect date column (search headers for time-series)
             gDateColumnKey = detectDateColumn(headers, records);
             
-            // Auto-detect date format and sort chronologically
+            // Auto-detect date format
             if (gDateColumnKey) {
                 gDateFormat = detectDateFormat(records, gDateColumnKey);
+            }
+            
+            // Filter out empty/placeholder rows and future dates (stop at today's date)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            gParsedRecords = records.filter(r => {
+                // Must have at least one valid role filled (non-vacant)
+                let hasFilledRole = false;
+                headers.forEach(h => {
+                    const val = r[h];
+                    if (val && !TM_EXCLUDE_NAMES.test(val) && classifyTMColumn(h) !== null) {
+                        hasFilledRole = true;
+                    }
+                });
+                if (!hasFilledRole) return false;
+                
+                // Must not be in the future (greater than today)
+                if (gDateColumnKey) {
+                    const recDate = parseRecordDate(r[gDateColumnKey]);
+                    if (!recDate) return false; // Exclude if date is unparseable
+                    if (recDate.getTime() > today.getTime()) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+            
+            // Sort chronologically
+            if (gDateColumnKey) {
                 gParsedRecords.sort((a, b) => {
                     const da = parseRecordDate(a[gDateColumnKey]);
                     const db = parseRecordDate(b[gDateColumnKey]);
                     return (da || 0) - (db || 0);
                 });
-                gFilteredRecords = [...gParsedRecords];
             }
+            
+            gFilteredRecords = [...gParsedRecords];
             
             // Save to LocalStorage
             saveToLocalStorage();
@@ -2404,6 +2433,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 gHeaders = JSON.parse(localStorage.getItem(CACHE_HEADERS_KEY));
                 gParsedRecords = JSON.parse(localStorage.getItem(CACHE_DATA_KEY));
                 gDateColumnKey = localStorage.getItem(CACHE_DATE_KEY);
+                
+                // Auto-detect date format for cached records
+                if (gDateColumnKey && gParsedRecords && gParsedRecords.length > 0) {
+                    gDateFormat = detectDateFormat(gParsedRecords, gDateColumnKey);
+                }
+                
                 gFilteredRecords = [...gParsedRecords];
                 
                 document.getElementById('resumeBanner').style.display = 'none';
