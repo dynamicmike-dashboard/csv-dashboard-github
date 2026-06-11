@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>mAIstermind CSV Graphic Dashboard</title>
+    <title>mAIstermind Toastmasters Club Dashboard</title>
     
     <!-- Typography and Icons via Google Fonts -->
     <style>
@@ -934,7 +934,7 @@
             <svg viewBox="0 0 24 24">
                 <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm0 8H7v-2h10v2z"/>
             </svg>
-            <h1 class="logo-text">mAIstermind<span>.com</span></h1>
+            <h1 class="logo-text">mAIstermind <span>Toastmasters</span></h1>
         </div>
         <div class="header-badges">
             <span id="fileBadge" class="badge badge-violet" style="display: none;">No File Loaded</span>
@@ -968,8 +968,8 @@
                     <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
                 </svg>
             </div>
-            <h2 class="upload-title">Drop your spreadsheet here</h2>
-            <p class="upload-subtitle">Accepts .csv, .xlsx, or .xls files. Everything is processed 100% locally in your browser — your data never leaves your computer.</p>
+            <h2 class="upload-title">Drop your Toastmasters spreadsheet here</h2>
+            <p class="upload-subtitle">Accepts Toastmasters meeting agendas, CSV or Excel files. Everything is processed 100% locally in your browser — your data never leaves your computer.</p>
             
             <input type="file" id="fileInput" accept=".csv, .xlsx, .xls" style="display: none;" onchange="handleFileSelect(event)">
             <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
@@ -1680,156 +1680,72 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             const kpiContainer = document.getElementById('kpiContainer');
             kpiContainer.innerHTML = '';
             
-            // Check if it's Toastmasters agenda schema by inspecting headers
-            let isTM = false;
-            let tmRolesCount = 0;
-            gHeaders.forEach(h => {
-                if (classifyTMColumn(h)) tmRolesCount++;
-            });
-            isTM = tmRolesCount >= 3;
+            // Compute Toastmasters specific metrics
+            const meetingsCount = gFilteredRecords.length;
+            let speakerCount = 0;
+            let evaluatorCount = 0;
+            let facilitatorCount = 0;
+            let supportCount = 0;
+            const members = new Set();
             
-            const cards = [];
-            
-            if (isTM) {
-                // Compute Toastmasters specific metrics
-                const meetingsCount = gFilteredRecords.length;
-                let speakerCount = 0;
-                let evaluatorCount = 0;
-                let facilitatorCount = 0;
-                let supportCount = 0;
-                const members = new Set();
-                
-                gFilteredRecords.forEach(rec => {
-                    gHeaders.forEach(h => {
-                        const val = rec[h];
-                        if (val && !TM_EXCLUDE_NAMES.test(val)) {
-                            members.add(val);
-                            const category = classifyTMColumn(h);
-                            if (category === 'speaker') speakerCount++;
-                            else if (category === 'evaluator') evaluatorCount++;
-                            else if (category === 'facilitator') facilitatorCount++;
-                            else if (category === 'support') supportCount++;
-                        }
-                    });
+            gFilteredRecords.forEach(rec => {
+                gHeaders.forEach(h => {
+                    const val = rec[h];
+                    if (val && !TM_EXCLUDE_NAMES.test(val)) {
+                        members.add(val);
+                        const category = classifyTMColumn(h);
+                        if (category === 'speaker') speakerCount++;
+                        else if (category === 'evaluator') evaluatorCount++;
+                        else if (category === 'facilitator') facilitatorCount++;
+                        else if (category === 'support') supportCount++;
+                    }
                 });
-                
-                cards.push({
+            });
+            
+            const cards = [
+                {
                     title: "Total Meetings",
                     value: meetingsCount,
                     sub: "Meetings analyzed",
                     blob: "blob-lavender",
                     icon: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>`
-                });
-                cards.push({
+                },
+                {
                     title: "Speeches Given",
                     value: speakerCount,
                     sub: "Prepared speech roles",
                     blob: "blob-rose",
                     icon: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>`
-                });
-                cards.push({
+                },
+                {
                     title: "Evaluations",
                     value: evaluatorCount,
                     sub: "Feedback and evals",
                     blob: "blob-mint",
                     icon: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`
-                });
-                cards.push({
+                },
+                {
                     title: "Facilitations",
                     value: facilitatorCount,
                     sub: "TM, Topic Masters, Evaluator",
                     blob: "blob-sky",
                     icon: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20H7v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>`
-                });
-                cards.push({
+                },
+                {
                     title: "Support Roles",
                     value: supportCount,
                     sub: "Timer, Grammarian, Counter",
                     blob: "blob-peach",
                     icon: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>`
-                });
-                cards.push({
+                },
+                {
                     title: "Active Members",
                     value: members.size,
                     sub: "Unique contributors",
                     blob: "blob-lemon",
                     icon: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>`
-                });
-            } else {
-                // Compute Generic spreadsheet statistics
-                const totalRows = gFilteredRecords.length;
-                const totalCols = gHeaders.length;
-                
-                cards.push({
-                    title: "Total Records",
-                    value: totalRows,
-                    sub: "Filtered row count",
-                    blob: "blob-lavender",
-                    icon: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>`
-                });
-                cards.push({
-                    title: "Data Columns",
-                    value: totalCols,
-                    sub: "Fields in sheet",
-                    blob: "blob-rose",
-                    icon: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>`
-                });
-                
-                // Find potential numeric columns to calculate aggregates
-                const numericColumns = gHeaders.filter(h => {
-                    let numberCount = 0;
-                    let sampleSize = Math.min(gFilteredRecords.length, 10);
-                    for (let i = 0; i < sampleSize; i++) {
-                        const rawVal = gFilteredRecords[i][h];
-                        const val = parseFloat(String(rawVal).replace(/[$,]/g, ''));
-                        if (rawVal !== "" && !isNaN(val)) numberCount++;
-                    }
-                    return numberCount >= sampleSize * 0.8;
-                });
-                
-                if (numericColumns.length > 0) {
-                    const col = numericColumns[0];
-                    let sum = 0;
-                    let count = 0;
-                    gFilteredRecords.forEach(rec => {
-                        const val = parseFloat(String(rec[col]).replace(/[$,]/g, ''));
-                        if (!isNaN(val)) {
-                            sum += val;
-                            count++;
-                        }
-                    });
-                    const avg = count > 0 ? (sum / count) : 0;
-                    
-                    cards.push({
-                        title: `Total ${col}`,
-                        value: sum.toLocaleString(undefined, { maximumFractionDigits: 1 }),
-                        sub: `Summed column values`,
-                        blob: "blob-mint",
-                        icon: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>`
-                    });
-                    
-                    cards.push({
-                        title: `Avg ${col}`,
-                        value: avg.toLocaleString(undefined, { maximumFractionDigits: 2 }),
-                        sub: `Average column value`,
-                        blob: "blob-sky",
-                        icon: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>`
-                    });
-                } else {
-                    // Fallback to uniqueness statistics
-                    let bestCategorical = gHeaders.find(h => h !== gDateColumnKey);
-                    if (bestCategorical) {
-                        const uniqueCount = new Set(gFilteredRecords.map(r => r[bestCategorical]).filter(v => v)).size;
-                        cards.push({
-                            title: `Unique ${bestCategorical}`,
-                            value: uniqueCount,
-                            sub: `Unique items detected`,
-                            blob: "blob-mint",
-                            icon: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>`
-                        });
-                    }
                 }
-            }
+            ];
             
             cards.forEach((card, idx) => {
                 const html = `
@@ -1893,28 +1809,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 });
             });
             
-            // Check if values are zero (maybe generic dataset)
-            const sumValues = Object.values(categories).reduce((s, v) => s + v, 0);
-            let labels = [];
-            let data = [];
-            
-            if (sumValues === 0) {
-                // Fallback for Generic layout: top columns count
-                const countMap = {};
-                gFilteredRecords.forEach(rec => {
-                    gHeaders.slice(0, 4).forEach(h => {
-                        const val = rec[h];
-                        if (val) {
-                            countMap[h] = (countMap[h] || 0) + 1;
-                        }
-                    });
-                });
-                labels = Object.keys(countMap).slice(0, 4);
-                data = labels.map(l => countMap[l]);
-            } else {
-                labels = Object.keys(categories);
-                data = Object.values(categories);
-            }
+            const labels = Object.keys(categories);
+            const data = Object.values(categories);
             
             gChartInstances['categoryChart'] = new Chart(ctx, {
                 type: 'bar',
@@ -2062,14 +1958,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             let labels = Object.keys(roleCounts).filter(l => roleCounts[l] > 0);
             let data = labels.map(l => roleCounts[l]);
             
-            if (labels.length === 0) {
-                // Fallback for Generic layout: column occurrences
-                gHeaders.slice(0, 5).forEach(h => {
-                    labels.push(h);
-                    data.push(gFilteredRecords.filter(r => r[h] !== "").length);
-                });
-            }
-            
             // Limit to Top 5
             const sortedIndices = data.map((d, i) => i).sort((a, b) => data[b] - data[a]);
             labels = sortedIndices.map(i => labels[i]).slice(0, 5);
@@ -2134,21 +2022,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             let data = sortedMembers.map(m => memberCounts[m]).slice(0, 6);
             let labels = sortedMembers.slice(0, 6);
             
-            if (labels.length === 0) {
-                // Fallback for Generic Layout: top values in first categorical column
-                const bestCol = gHeaders.find(h => h !== gDateColumnKey);
-                if (bestCol) {
-                    const genericCounts = {};
-                    gFilteredRecords.forEach(r => {
-                        const val = r[bestCol];
-                        if (val) genericCounts[val] = (genericCounts[val] || 0) + 1;
-                    });
-                    sortedMembers = Object.keys(genericCounts).sort((a, b) => genericCounts[b] - genericCounts[a]);
-                    data = sortedMembers.map(m => genericCounts[m]).slice(0, 6);
-                    labels = sortedMembers.slice(0, 6);
-                }
-            }
-            
             gChartInstances['membersChart'] = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -2195,26 +2068,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             const grid = document.getElementById('leaderboardsGrid');
             grid.innerHTML = '';
             
-            // Check if it's Toastmasters agenda schema by inspecting headers
-            let isTM = false;
-            let tmRolesCount = 0;
-            gHeaders.forEach(h => {
-                if (classifyTMColumn(h)) tmRolesCount++;
-            });
-            isTM = tmRolesCount >= 3;
-            
             const categories = [
                 { id: 'speaker', title: 'Top Speakers', sub: 'Speeches delivered', color: 'blob-rose' },
                 { id: 'evaluator', title: 'Top Evaluators', sub: 'Feedback given', color: 'blob-mint' },
                 { id: 'facilitator', title: 'Top Facilitators', sub: 'Meeting management', color: 'blob-sky' },
                 { id: 'support', title: 'Top Support Roles', sub: 'Timer, Grammarian, Counter', color: 'blob-peach' }
             ];
-            
-            if (!isTM) {
-                // Generic Fallback: compute top fields of the first few columns
-                grid.parentElement.style.display = 'none'; // Hide if not TM agenda
-                return;
-            }
             
             grid.parentElement.style.display = 'block';
             
