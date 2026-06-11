@@ -1144,6 +1144,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         let gHeaders = []; // array of keys
         let gFilteredRecords = [];
         let gLayoutType = "Standard";
+        let gDateFormat = "EU";
         let gFileName = "";
         let gDateColumnKey = null;
         let gFilters = {}; // Active filters mapping {key: value}
@@ -1383,12 +1384,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             // Detect date column (search headers for time-series)
             gDateColumnKey = detectDateColumn(headers, records);
             
-            // If date column detected, sort records chronologically
+            // Auto-detect date format and sort chronologically
             if (gDateColumnKey) {
+                gDateFormat = detectDateFormat(records, gDateColumnKey);
                 gParsedRecords.sort((a, b) => {
-                    const da = new Date(a[gDateColumnKey]);
-                    const db = new Date(b[gDateColumnKey]);
-                    return (isNaN(da) ? 0 : da) - (isNaN(db) ? 0 : db);
+                    const da = parseRecordDate(a[gDateColumnKey]);
+                    const db = parseRecordDate(b[gDateColumnKey]);
+                    return (da || 0) - (db || 0);
                 });
                 gFilteredRecords = [...gParsedRecords];
             }
@@ -1483,6 +1485,41 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             return null;
         }
 
+        function detectDateFormat(records, dateKey) {
+            if (!records || records.length === 0 || !dateKey) return "EU";
+            
+            let hasISO = false;
+            let firstPartGreater12 = false;
+            let secondPartGreater12 = false;
+            
+            for (let rec of records) {
+                const val = String(rec[dateKey]).trim();
+                if (!val) continue;
+                
+                if (val.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
+                    hasISO = true;
+                    break;
+                }
+                
+                const parts = val.split(/[\/\-]/);
+                if (parts.length >= 2) {
+                    const p0 = parseInt(parts[0]);
+                    const p1 = parseInt(parts[1]);
+                    if (!isNaN(p0) && p0 > 12) {
+                        firstPartGreater12 = true;
+                    }
+                    if (!isNaN(p1) && p1 > 12) {
+                        secondPartGreater12 = true;
+                    }
+                }
+            }
+            
+            if (hasISO) return "ISO";
+            if (firstPartGreater12) return "EU"; 
+            if (secondPartGreater12) return "US"; 
+            return "EU"; 
+        }
+
         function parseRecordDate(val) {
             if (!val) return null;
             if (val instanceof Date) {
@@ -1494,17 +1531,33 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             if (!str) return null;
             
             // Match YYYY-MM-DD
-            let match = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            let match = str.match(/^(\d{4})[\-\/](\d{1,2})[\-\/](\d{1,2})$/);
             if (match) {
                 const date = new Date(parseInt(match[1]), parseInt(match[2]) - 1, parseInt(match[3]));
                 date.setHours(0, 0, 0, 0);
                 return date;
             }
             
-            // Match MM/DD/YYYY or M/D/YYYY
-            match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            // Match DD/MM/YY or MM/DD/YY (2 or 4 digit year)
+            match = str.match(/^(\d{1,2})[\-\/](\d{1,2})[\-\/](\d{2,4})$/);
             if (match) {
-                const date = new Date(parseInt(match[3]), parseInt(match[1]) - 1, parseInt(match[2]));
+                const p1 = parseInt(match[1]);
+                const p2 = parseInt(match[2]);
+                let year = parseInt(match[3]);
+                if (year < 100) {
+                    year += 2000;
+                }
+                
+                let day, month;
+                if (gDateFormat === "EU") {
+                    day = p1;
+                    month = p2;
+                } else {
+                    month = p1;
+                    day = p2;
+                }
+                
+                const date = new Date(year, month - 1, day);
                 date.setHours(0, 0, 0, 0);
                 return date;
             }
@@ -1514,7 +1567,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             if (isNaN(timestamp)) return null;
             
             const date = new Date(timestamp);
-            // If parsed as UTC, convert to local date representation
             const localDate = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
             localDate.setHours(0, 0, 0, 0);
             return localDate;
@@ -1693,7 +1745,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 // Compare record date with local date bounds
                 if (gDateColumnKey) {
                     const recDate = parseRecordDate(record[gDateColumnKey]);
-                    if (recDate) {
+                    if (startD || endD) {
+                        if (!recDate) return false;
                         if (startD && recDate.getTime() < startD.getTime()) return false;
                         if (endD && recDate.getTime() > endD.getTime()) return false;
                     }
@@ -2387,6 +2440,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             gLayoutType = "Standard";
             gFileName = "";
             gDateColumnKey = null;
+            gDateFormat = "EU";
             gFilters = {};
             
             for (let id in gChartInstances) {
