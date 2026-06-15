@@ -877,6 +877,33 @@
                 align-items: flex-start;
                 gap: 16px;
             }
+        /* Print PDF styles */
+        @media print {
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            header, .filters-bar, #clearCacheBtn, .welcome-banner, .modal-overlay, #resumeBanner {
+                display: none !important;
+            }
+            .container {
+                max-width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .glass-card {
+                background: white !important;
+                border: 1px solid #ccc !important;
+                box-shadow: none !important;
+                page-break-inside: avoid;
+            }
+            .charts-grid, .leaderboards-grid {
+                grid-template-columns: 1fr 1fr !important;
+                gap: 16px !important;
+            }
+            .kpis-container {
+                grid-template-columns: repeat(3, 1fr) !important;
+            }
         }
     </style>
 </head>
@@ -1052,8 +1079,7 @@
         </div>
         <div class="header-badges">
             <span id="fileBadge" class="badge badge-violet" style="display: none;">No File Loaded</span>
-            <span id="orientationBadge" class="badge badge-pink" style="display: none;">Auto-detecting...</span>
-            <span class="badge badge-cyan">Local Processing Only</span>
+            <span id="orientationBadge" class="badge badge-pink" style="display: none;"></span>
             <button id="clearCacheBtn" class="btn btn-danger" style="display: none;" onclick="clearSavedData()">Clear Cache</button>
             <button class="btn btn-outline" onclick="openHelpModal()">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
@@ -1112,6 +1138,19 @@
                     <button class="btn btn-outline" onclick="openRosterModal()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                         Manage Roster
+                    </button>
+                    <button class="btn btn-outline" onclick="exportRosterAndAliases()" title="Download Backup file of Roster Status & Name Merges">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                        Export Config
+                    </button>
+                    <button class="btn btn-outline" onclick="document.getElementById('importConfigInput').click()" title="Upload Roster & Name Merges Backup">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                        Import Config
+                    </button>
+                    <input type="file" id="importConfigInput" accept=".json" style="display: none;" onchange="importRosterAndAliases(event)">
+                    <button class="btn btn-outline" onclick="window.print()" title="Print page or save dashboard as PDF">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
+                        Print to PDF
                     </button>
                     <button class="btn btn-outline" onclick="resetFilters()">Reset Filters</button>
                 </div>
@@ -1652,7 +1691,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             
             const orientationBadge = document.getElementById('orientationBadge');
             if (gLayoutType === 'B') {
-                orientationBadge.textContent = "Transposed Layout — auto-corrected ✓";
+                orientationBadge.textContent = "Transposed Layout";
                 orientationBadge.className = "badge badge-pink";
             } else {
                 orientationBadge.textContent = "Standard Layout";
@@ -3133,6 +3172,47 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             
             buildMergeTabUI();
             applyFilters();
+        }
+
+        // Export and Import configurations
+        function exportRosterAndAliases() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+                roster: Array.from(gInactiveMembers),
+                aliases: gNameAliases
+            }, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", "toastmasters_roster_config.json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importRosterAndAliases(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed.roster && Array.isArray(parsed.roster)) {
+                        gInactiveMembers = new Set(parsed.roster);
+                        saveRosterToLocalStorage();
+                    }
+                    if (parsed.aliases && typeof parsed.aliases === 'object') {
+                        gNameAliases = parsed.aliases;
+                        saveAliasesToLocalStorage();
+                    }
+                    alert("Roster configuration loaded successfully!");
+                    applyFilters();
+                } catch (err) {
+                    alert("Error parsing backup configuration file: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+            // Reset input file value to allow re-upload
+            event.target.value = '';
         }
     </script>
 </body>
