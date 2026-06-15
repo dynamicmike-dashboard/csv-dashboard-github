@@ -2074,14 +2074,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 gHeaders.forEach(h => {
                     const val = rec[h];
                     if (val && !TM_EXCLUDE_NAMES.test(val)) {
-                        const resolved = resolveNameAlias(val).trim();
-                        if (gFilters._includeInactive || !gInactiveMembers.has(resolved)) {
-                            members.add(resolved);
-                            const category = classifyTMColumn(h);
-                            if (category === 'speaker') speakerCount++;
-                            else if (category === 'evaluator') evaluatorCount++;
-                            else if (category === 'facilitator') facilitatorCount++;
-                            else if (category === 'support') supportCount++;
+                        const category = classifyTMColumn(h);
+                        if (category !== null) {
+                            const resolved = resolveNameAlias(val).trim();
+                            if (gFilters._includeInactive || !gInactiveMembers.has(resolved)) {
+                                members.add(resolved);
+                                if (category === 'speaker') speakerCount++;
+                                else if (category === 'evaluator') evaluatorCount++;
+                                else if (category === 'facilitator') facilitatorCount++;
+                                else if (category === 'support') supportCount++;
+                            }
                         }
                     }
                 });
