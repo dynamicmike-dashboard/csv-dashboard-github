@@ -1982,6 +1982,26 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                         if (endD && recDate.getTime() > endD.getTime()) return false;
                     }
                 }
+
+                // If not including inactive, and the row contains only inactive members in all role columns
+                if (!gFilters._includeInactive) {
+                    let hasAnyActiveFiller = false;
+                    let hasAnyRoles = false;
+                    gHeaders.forEach(h => {
+                        const val = record[h];
+                        if (val && !TM_EXCLUDE_NAMES.test(val) && classifyTMColumn(h) !== null) {
+                            hasAnyRoles = true;
+                            const resolved = resolveNameAlias(val).trim();
+                            if (!gInactiveMembers.has(resolved)) {
+                                hasAnyActiveFiller = true;
+                            }
+                        }
+                    });
+                    // If this row lists filled roles but they are all inactive members, filter the record out
+                    if (hasAnyRoles && !hasAnyActiveFiller) {
+                        return false;
+                    }
+                }
                 return true;
             });
             
