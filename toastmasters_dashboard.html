@@ -936,16 +936,58 @@
             </button>
             <h2 class="modal-title">Manage Member Roster</h2>
             <div class="modal-content">
-                <p style="font-size: 0.85rem; color: #6B7280; margin-bottom: 12px;">
-                    Uncheck members who are no longer active (e.g. have not renewed). Inactive members are excluded from charts, metrics, and leaderboards unless "Include Inactive" is enabled.
-                </p>
-                <input type="text" id="rosterSearch" placeholder="Search members..." class="filter-select" style="width: 100%; margin-bottom: 12px; padding: 8px 12px;" oninput="filterRosterList()">
-                <div id="rosterListContainer" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; background: rgba(255,255,255,0.3);">
-                    <!-- Dynamically populated with checkbox items -->
+                <!-- Roster Modal Tabs -->
+                <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--glass-border); margin-bottom: 16px; padding-bottom: 8px;">
+                    <button class="btn btn-primary" id="rosterTabBtnStatus" onclick="switchRosterTab('status')" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 8px;">Roster Status</button>
+                    <button class="btn btn-outline" id="rosterTabBtnMerge" onclick="switchRosterTab('merge')" style="padding: 4px 12px; font-size: 0.8rem; border-radius: 8px;">Merge Duplicate Names</button>
                 </div>
-                <div style="margin-top: 16px; display: flex; justify-content: space-between; gap: 12px;">
-                    <button class="btn btn-outline" style="padding: 6px 12px;" onclick="toggleAllRoster(true)">Mark All Active</button>
-                    <button class="btn btn-primary" style="padding: 6px 16px;" onclick="closeRosterModal()">Done</button>
+
+                <!-- Tab 1: Roster Status Checklist -->
+                <div id="rosterTabContentStatus">
+                    <p style="font-size: 0.85rem; color: #6B7280; margin-bottom: 12px;">
+                        Uncheck members who are no longer active (e.g. have not renewed). Inactive members are excluded from charts, metrics, and leaderboards unless "Include Inactive" is enabled.
+                    </p>
+                    <input type="text" id="rosterSearch" placeholder="Search members..." class="filter-select" style="width: 100%; margin-bottom: 12px; padding: 8px 12px;" oninput="filterRosterList()">
+                    <div id="rosterListContainer" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; background: rgba(255,255,255,0.3);">
+                        <!-- Dynamically populated with checkbox items -->
+                    </div>
+                    <div style="margin-top: 16px; display: flex; justify-content: space-between; gap: 12px;">
+                        <button class="btn btn-outline" style="padding: 6px 12px;" onclick="toggleAllRoster(true)">Mark All Active</button>
+                        <button class="btn btn-primary" style="padding: 6px 16px;" onclick="closeRosterModal()">Done</button>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Consolidate & Merge Names -->
+                <div id="rosterTabContentMerge" style="display: none;">
+                    <p style="font-size: 0.85rem; color: #6B7280; margin-bottom: 12px;">
+                        Consolidate duplicate member entries (e.g., nicknames, spelling typos). All historical records, speeches, and dates will be merged under the target name.
+                    </p>
+                    
+                    <!-- Create Merge Form -->
+                    <div style="background: rgba(120, 80, 200, 0.05); padding: 12px; border-radius: 12px; border: 1px solid var(--glass-border); margin-bottom: 16px;">
+                        <h4 style="font-size: 0.88rem; font-weight: 700; margin-bottom: 8px; color: var(--accent-violet);">Add Name Merge Mapping</h4>
+                        <div style="display: flex; flex-direction: column; gap: 8px; text-align: left;">
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">Duplicate Name (Merge from):</label>
+                                <select id="mergeSourceSelect" class="filter-select" style="width: 100%;"></select>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">Canonical Name (Merge into):</label>
+                                <select id="mergeTargetSelect" class="filter-select" style="width: 100%;"></select>
+                            </div>
+                            <button class="btn btn-primary" onclick="createMergeAlias()" style="padding: 8px; justify-content: center; margin-top: 4px;">Create Merge Mapping</button>
+                        </div>
+                    </div>
+
+                    <!-- Active Merges List -->
+                    <h4 style="font-size: 0.88rem; font-weight: 700; margin-bottom: 8px; color: var(--accent-violet);">Active Merge Mappings</h4>
+                    <div id="activeMergesList" style="max-height: 180px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; background: rgba(255,255,255,0.3);">
+                        <!-- Dynamically populated -->
+                    </div>
+                    
+                    <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
+                        <button class="btn btn-primary" style="padding: 6px 16px;" onclick="closeRosterModal()">Done</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1226,6 +1268,31 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         let gFilters = {}; // Active filters mapping {key: value}
         let gChartInstances = {};
         let gInactiveMembers = new Set(); // Set of names marked inactive
+        let gNameAliases = {}; // Map of duplicate_name -> canonical_name
+
+        function loadAliasesFromLocalStorage() {
+            try {
+                const data = localStorage.getItem('maister_name_aliases');
+                gNameAliases = data ? JSON.parse(data) : {};
+            } catch (e) {
+                console.error("Failed to load name aliases", e);
+                gNameAliases = {};
+            }
+        }
+
+        function saveAliasesToLocalStorage() {
+            try {
+                localStorage.setItem('maister_name_aliases', JSON.stringify(gNameAliases));
+            } catch (e) {
+                console.error("Failed to save name aliases", e);
+            }
+        }
+
+        function resolveNameAlias(name) {
+            if (!name) return "";
+            const trimmed = name.trim();
+            return gNameAliases[trimmed] || trimmed;
+        }
 
         function loadRosterFromLocalStorage() {
             try {
@@ -1375,6 +1442,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         // UI Initializations
         window.addEventListener('DOMContentLoaded', () => {
             setupDragAndDrop();
+            loadAliasesFromLocalStorage();
             loadRosterFromLocalStorage();
             checkLocalStorage();
         });
@@ -1946,13 +2014,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             gFilteredRecords.forEach(rec => {
                 gHeaders.forEach(h => {
                     const val = rec[h];
-                    if (val && !TM_EXCLUDE_NAMES.test(val) && (gFilters._includeInactive || !gInactiveMembers.has(val.trim()))) {
-                        members.add(val.trim());
-                        const category = classifyTMColumn(h);
-                        if (category === 'speaker') speakerCount++;
-                        else if (category === 'evaluator') evaluatorCount++;
-                        else if (category === 'facilitator') facilitatorCount++;
-                        else if (category === 'support') supportCount++;
+                    if (val && !TM_EXCLUDE_NAMES.test(val)) {
+                        const resolved = resolveNameAlias(val).trim();
+                        if (gFilters._includeInactive || !gInactiveMembers.has(resolved)) {
+                            members.add(resolved);
+                            const category = classifyTMColumn(h);
+                            if (category === 'speaker') speakerCount++;
+                            else if (category === 'evaluator') evaluatorCount++;
+                            else if (category === 'facilitator') facilitatorCount++;
+                            else if (category === 'support') supportCount++;
+                        }
                     }
                 });
             });
@@ -2054,12 +2125,15 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             gFilteredRecords.forEach(rec => {
                 gHeaders.forEach(h => {
                     const val = rec[h];
-                    if (val && !TM_EXCLUDE_NAMES.test(val) && (gFilters._includeInactive || !gInactiveMembers.has(val.trim()))) {
-                        const cat = classifyTMColumn(h);
-                        if (cat === 'speaker') categories["Speakers"]++;
-                        else if (cat === 'evaluator') categories["Evaluators"]++;
-                        else if (cat === 'facilitator') categories["Toastmasters"]++;
-                        else if (cat === 'support') categories["Support Roles"]++;
+                    if (val && !TM_EXCLUDE_NAMES.test(val)) {
+                        const resolved = resolveNameAlias(val).trim();
+                        if (gFilters._includeInactive || !gInactiveMembers.has(resolved)) {
+                            const cat = classifyTMColumn(h);
+                            if (cat === 'speaker') categories["Speakers"]++;
+                            else if (cat === 'evaluator') categories["Evaluators"]++;
+                            else if (cat === 'facilitator') categories["Toastmasters"]++;
+                            else if (cat === 'support') categories["Support Roles"]++;
+                        }
                     }
                 });
             });
@@ -2131,8 +2205,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                         // Count total roles filled as activity measure
                         let count = 0;
                         gHeaders.forEach(h => {
-                            if (h !== gDateColumnKey && rec[h] && !TM_EXCLUDE_NAMES.test(rec[h]) && (gFilters._includeInactive || !gInactiveMembers.has(rec[h].trim()))) {
-                                count++;
+                            if (h !== gDateColumnKey && rec[h] && !TM_EXCLUDE_NAMES.test(rec[h])) {
+                                const resolved = resolveNameAlias(rec[h]).trim();
+                                if (gFilters._includeInactive || !gInactiveMembers.has(resolved)) {
+                                    count++;
+                                }
                             }
                         });
                         timelineValues.push(count);
@@ -2204,8 +2281,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             gFilteredRecords.forEach(rec => {
                 gHeaders.forEach(h => {
                     const cat = classifyTMColumn(h);
-                    if (cat) {
-                        roleCounts[h] = (roleCounts[h] || 0) + (rec[h] && !TM_EXCLUDE_NAMES.test(rec[h]) && (gFilters._includeInactive || !gInactiveMembers.has(rec[h].trim())) ? 1 : 0);
+                    if (cat && rec[h] && !TM_EXCLUDE_NAMES.test(rec[h])) {
+                        const resolved = resolveNameAlias(rec[h]).trim();
+                        if (gFilters._includeInactive || !gInactiveMembers.has(resolved)) {
+                            roleCounts[h] = (roleCounts[h] || 0) + 1;
+                        }
                     }
                 });
             });
@@ -2267,8 +2347,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             gFilteredRecords.forEach(rec => {
                 gHeaders.forEach(h => {
                     const val = rec[h];
-                    if (val && !TM_EXCLUDE_NAMES.test(val) && classifyTMColumn(h) && (gFilters._includeInactive || !gInactiveMembers.has(val.trim()))) {
-                        memberCounts[val] = (memberCounts[val] || 0) + 1;
+                    if (val && !TM_EXCLUDE_NAMES.test(val) && classifyTMColumn(h)) {
+                        const resolved = resolveNameAlias(val).trim();
+                        if (gFilters._includeInactive || !gInactiveMembers.has(resolved)) {
+                            memberCounts[resolved] = (memberCounts[resolved] || 0) + 1;
+                        }
                     }
                 });
             });
@@ -2379,13 +2462,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             gFilteredRecords.forEach(rec => {
                 gHeaders.forEach(h => {
                     const val = rec[h];
-                    if (val && !TM_EXCLUDE_NAMES.test(val) && (gFilters._includeInactive || !gInactiveMembers.has(val.trim()))) {
-                        const cat = classifyTMColumn(h);
-                        if (cat && boardStats[cat]) {
-                            boardStats[cat][val] = (boardStats[cat][val] || 0) + 1;
-                        }
-                        if (selectedRole && h === selectedRole && boardStats['custom_role']) {
-                            boardStats['custom_role'][val] = (boardStats['custom_role'][val] || 0) + 1;
+                    if (val && !TM_EXCLUDE_NAMES.test(val)) {
+                        const resolved = resolveNameAlias(val).trim();
+                        if (gFilters._includeInactive || !gInactiveMembers.has(resolved)) {
+                            const cat = classifyTMColumn(h);
+                            if (cat && boardStats[cat]) {
+                                boardStats[cat][resolved] = (boardStats[cat][resolved] || 0) + 1;
+                            }
+                            if (selectedRole && h === selectedRole && boardStats['custom_role']) {
+                                boardStats['custom_role'][resolved] = (boardStats['custom_role'][resolved] || 0) + 1;
+                            }
                         }
                     }
                 });
@@ -2492,7 +2578,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                     
                     const roleCat = classifyTMColumn(h);
                     if (roleCat && val && !TM_EXCLUDE_NAMES.test(val)) {
-                        const isInactive = gInactiveMembers.has(val.trim());
+                        const resolved = resolveNameAlias(val).trim();
+                        const isInactive = gInactiveMembers.has(resolved);
                         if (isInactive && !gFilters._includeInactive) {
                             td.textContent = "";
                         } else {
@@ -2504,7 +2591,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                             if (isInactive) {
                                 badgeStyle = "background: rgba(156, 163, 175, 0.1); color: #9CA3AF; border: 1px solid rgba(156, 163, 175, 0.2); text-decoration: line-through;";
                             }
-                            td.innerHTML = `<span class="pill-role clickable-name" style="${badgeStyle}" onclick="showMemberStats('${val.replace(/'/g, "\\\'")}')">${val}</span>`;
+                            td.innerHTML = `<span class="pill-role clickable-name" style="${badgeStyle}" onclick="showMemberStats('${resolved.replace(/'/g, "\\\'")}')">${resolved}</span>`;
                         }
                     } else {
                         td.textContent = val !== null && val !== undefined ? val : "";
@@ -2660,11 +2747,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             gFilteredRecords.forEach(rec => {
                 gHeaders.forEach(h => {
                     const val = rec[h];
-                    if (val && val.trim().toLowerCase() === memberName.trim().toLowerCase()) {
-                        const isRole = classifyTMColumn(h) !== null;
-                        if (isRole) {
-                            roleCounts[h] = (roleCounts[h] || 0) + 1;
-                            totalCount++;
+                    if (val) {
+                        const resolved = resolveNameAlias(val).trim();
+                        if (resolved.toLowerCase() === memberName.trim().toLowerCase()) {
+                            const isRole = classifyTMColumn(h) !== null;
+                            if (isRole) {
+                                roleCounts[h] = (roleCounts[h] || 0) + 1;
+                                totalCount++;
+                            }
                         }
                     }
                 });
@@ -2776,7 +2866,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 gHeaders.forEach(h => {
                     const val = rec[h];
                     if (val && !TM_EXCLUDE_NAMES.test(val) && classifyTMColumn(h) !== null) {
-                        const name = val.trim();
+                        const name = resolveNameAlias(val).trim();
                         if (!memberDates[name]) {
                             memberDates[name] = [];
                         }
@@ -2891,7 +2981,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 gHeaders.forEach(h => {
                     const val = rec[h];
                     if (val && !TM_EXCLUDE_NAMES.test(val) && classifyTMColumn(h) !== null) {
-                        members.add(val.trim());
+                        members.add(resolveNameAlias(val).trim());
                     }
                 });
             });
@@ -2902,6 +2992,127 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 members.forEach(name => gInactiveMembers.add(name));
             }
             buildRosterList(document.getElementById('rosterSearch').value);
+        }
+
+        // Tab control
+        function switchRosterTab(tab) {
+            const btnStatus = document.getElementById('rosterTabBtnStatus');
+            const btnMerge = document.getElementById('rosterTabBtnMerge');
+            const contentStatus = document.getElementById('rosterTabContentStatus');
+            const contentMerge = document.getElementById('rosterTabContentMerge');
+
+            if (tab === 'status') {
+                btnStatus.className = 'btn btn-primary';
+                btnMerge.className = 'btn btn-outline';
+                contentStatus.style.display = 'block';
+                contentMerge.style.display = 'none';
+                buildRosterList(document.getElementById('rosterSearch').value);
+            } else {
+                btnStatus.className = 'btn btn-outline';
+                btnMerge.className = 'btn btn-primary';
+                contentStatus.style.display = 'none';
+                contentMerge.style.display = 'block';
+                buildMergeTabUI();
+            }
+        }
+
+        // Merge Tab UI Builder
+        function buildMergeTabUI() {
+            const rawMembers = new Set();
+            gParsedRecords.forEach(rec => {
+                gHeaders.forEach(h => {
+                    const val = rec[h];
+                    if (val && !TM_EXCLUDE_NAMES.test(val) && classifyTMColumn(h) !== null) {
+                        rawMembers.add(val.trim());
+                    }
+                });
+            });
+
+            const sortedMembers = Array.from(rawMembers).sort();
+
+            const sourceSelect = document.getElementById('mergeSourceSelect');
+            const targetSelect = document.getElementById('mergeTargetSelect');
+            sourceSelect.innerHTML = '<option value="">-- Select Duplicate Name --</option>';
+            targetSelect.innerHTML = '<option value="">-- Select Target Name --</option>';
+
+            sortedMembers.forEach(name => {
+                const optSource = document.createElement('option');
+                optSource.value = name;
+                optSource.textContent = name;
+                sourceSelect.appendChild(optSource);
+
+                const optTarget = document.createElement('option');
+                optTarget.value = name;
+                optTarget.textContent = name;
+                targetSelect.appendChild(optTarget);
+            });
+
+            const mergesList = document.getElementById('activeMergesList');
+            mergesList.innerHTML = '';
+
+            const activeSources = Object.keys(gNameAliases).sort();
+            activeSources.forEach(source => {
+                const target = gNameAliases[source];
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.alignItems = 'center';
+                row.style.padding = '6px 4px';
+                row.style.borderBottom = '1px solid rgba(180, 160, 220, 0.1)';
+                row.style.fontSize = '0.85rem';
+
+                const label = document.createElement('div');
+                label.style.display = 'flex';
+                label.style.alignItems = 'center';
+                label.style.gap = '6px';
+                label.innerHTML = `<span style="color: #9CA3AF; text-decoration: line-through;">${source}</span> <span style="color: var(--accent-violet);">➔</span> <span style="font-weight: 700;">${target}</span>`;
+
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-danger';
+                btn.style.padding = '2px 8px';
+                btn.style.fontSize = '0.75rem';
+                btn.textContent = 'Remove';
+                btn.addEventListener('click', () => {
+                    deleteMergeAlias(source);
+                });
+
+                row.appendChild(label);
+                row.appendChild(btn);
+                mergesList.appendChild(row);
+            });
+
+            if (activeSources.length === 0) {
+                mergesList.innerHTML = '<div style="text-align: center; color: #9CA3AF; padding: 20px 0; font-size: 0.85rem;">No active merge mappings</div>';
+            }
+        }
+
+        function createMergeAlias() {
+            const source = document.getElementById('mergeSourceSelect').value;
+            const target = document.getElementById('mergeTargetSelect').value;
+
+            if (!source || !target) {
+                alert("Please select both a duplicate name and a target name.");
+                return;
+            }
+
+            if (source === target) {
+                alert("You cannot merge a name into itself.");
+                return;
+            }
+
+            gNameAliases[source] = target;
+            saveAliasesToLocalStorage();
+            
+            buildMergeTabUI();
+            applyFilters();
+        }
+
+        function deleteMergeAlias(sourceName) {
+            delete gNameAliases[sourceName];
+            saveAliasesToLocalStorage();
+            
+            buildMergeTabUI();
+            applyFilters();
         }
     </script>
 </body>
