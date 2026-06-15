@@ -841,6 +841,15 @@
             font-family: monospace;
         }
 
+        .clickable-name {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .clickable-name:hover {
+            color: var(--accent-violet) !important;
+            text-decoration: underline;
+        }
+
         /* Responsive Breakpoints */
         @media (max-width: 900px) {
             .charts-grid {
@@ -877,6 +886,46 @@
     <div id="loadingOverlay" class="loading-overlay">
         <div class="spinner"></div>
         <div class="loading-message">Parsing your data...</div>
+    </div>
+
+    <!-- Member Details Modal -->
+    <div id="memberModal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 800px;">
+            <button class="modal-close" onclick="closeMemberModal()">
+                <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+            <h2 id="memberModalTitle" class="modal-title">Member Profile</h2>
+            <div class="modal-content">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; min-height: 300px;">
+                    <div>
+                        <h4 style="margin-top:0;">Fulfillment Summary</h4>
+                        <div style="font-size: 2.2rem; font-family: 'Playfair Display', serif; font-weight: 800; color: var(--accent-violet); margin-bottom: 4px;" id="memberTotalRoles">0</div>
+                        <p style="font-size: 0.85rem; color: #6B7280; margin-bottom: 20px;">Total Roles Fulfilled</p>
+                        
+                        <h4>Role Breakdown</h4>
+                        <div style="max-height: 220px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 8px; margin-top: 10px;">
+                            <table style="width: 100%; font-size: 0.85rem; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: rgba(120, 80, 200, 0.05); position: sticky; top: 0; z-index: 1;">
+                                        <th style="padding: 8px 12px; font-weight: 700; text-align: left; background: rgba(255,255,255,0.9);">Role</th>
+                                        <th style="padding: 8px 12px; font-weight: 700; text-align: right; background: rgba(255,255,255,0.9);">Count</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="memberRoleTableBody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 style="margin-top:0;">Visual Breakdown</h4>
+                        <div style="position: relative; height: 300px; width: 100%;">
+                            <canvas id="memberRolesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Help / Instructions Modal -->
@@ -2119,6 +2168,16 @@
                     indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const memberName = labels[index];
+                            showMemberStats(memberName);
+                        }
+                    },
+                    onHover: (event, chartElement) => {
+                        event.native.target.style.cursor = chartElement.length ? 'pointer' : 'default';
+                    },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
@@ -2242,7 +2301,7 @@
                                 <div class="leaderboard-row">
                                     <div class="rank-name-container">
                                         <div class="rank-badge ${rankClass}">${index + 1}</div>
-                                        <div class="leaderboard-name">${item.name}</div>
+                                        <div class="leaderboard-name clickable-name" onclick="showMemberStats('${item.name.replace(/'/g, "\\'")}')">${item.name}</div>
                                     </div>
                                     <div class="leaderboard-count">${item.count}</div>
                                 </div>
@@ -2312,7 +2371,7 @@
                         else if (roleCat === 'evaluator') badgeStyle = "background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.2);";
                         else if (roleCat === 'facilitator') badgeStyle = "background: rgba(6, 182, 212, 0.1); color: var(--accent-cyan); border: 1px solid rgba(6, 182, 212, 0.2);";
                         
-                        td.innerHTML = `<span class="pill-role" style="${badgeStyle}">${val}</span>`;
+                        td.innerHTML = `<span class="pill-role clickable-name" style="${badgeStyle}" onclick="showMemberStats('${val.replace(/'/g, "\\\'")}')">${val}</span>`;
                     } else {
                         td.textContent = val !== null && val !== undefined ? val : "";
                     }
@@ -2454,6 +2513,109 @@
 
         function closeHelpModal() {
             document.getElementById('helpModal').classList.remove('active');
+        }
+
+        // Member stats modal helpers
+        function showMemberStats(memberName) {
+            if (!memberName) return;
+            
+            // Find counts of each role for this member in gFilteredRecords
+            const roleCounts = {};
+            let totalCount = 0;
+            
+            gFilteredRecords.forEach(rec => {
+                gHeaders.forEach(h => {
+                    const val = rec[h];
+                    if (val && val.trim().toLowerCase() === memberName.trim().toLowerCase()) {
+                        const isRole = classifyTMColumn(h) !== null;
+                        if (isRole) {
+                            roleCounts[h] = (roleCounts[h] || 0) + 1;
+                            totalCount++;
+                        }
+                    }
+                });
+            });
+            
+            // Set name and total count
+            document.getElementById('memberModalTitle').textContent = `Member Profile: ${memberName}`;
+            document.getElementById('memberTotalRoles').textContent = totalCount;
+            
+            // Build Table Body
+            const tbody = document.getElementById('memberRoleTableBody');
+            tbody.innerHTML = '';
+            
+            // Sort roles by count descending
+            const sortedRoles = Object.keys(roleCounts).sort((a,b) => roleCounts[b] - roleCounts[a]);
+            sortedRoles.forEach(role => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 8px 12px; border-bottom: 1px solid rgba(120,80,200,0.05); text-align: left;">${role}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid rgba(120,80,200,0.05); text-align: right; font-weight: 700; color: var(--accent-violet);">${roleCounts[role]}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            if (sortedRoles.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="2" style="text-align: center; color: #9CA3AF; padding: 20px;">No roles fulfilled in active selection.</td></tr>`;
+            }
+            
+            // Destroy existing chart if it exists
+            if (gChartInstances['memberRolesChart']) {
+                gChartInstances['memberRolesChart'].destroy();
+            }
+            
+            // Render Chart.js visualization
+            const ctx = document.getElementById('memberRolesChart').getContext('2d');
+            const chartLabels = sortedRoles.slice(0, 8); // Top 8 roles for display
+            const chartData = chartLabels.map(r => roleCounts[r]);
+            
+            gChartInstances['memberRolesChart'] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        data: chartData,
+                        backgroundColor: [
+                            'rgba(139, 92, 246, 0.65)', // Violet
+                            'rgba(236, 72, 153, 0.65)', // Pink
+                            'rgba(6, 182, 212, 0.65)',  // Cyan
+                            'rgba(245, 158, 11, 0.65)',  // Orange
+                            'rgba(16, 185, 129, 0.65)',  // Green
+                            'rgba(99, 102, 241, 0.65)',  // Indigo
+                            'rgba(244, 63, 94, 0.65)',   // Rose
+                            'rgba(234, 179, 8, 0.65)'    // Yellow
+                        ],
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#1E1B4B',
+                                boxWidth: 12,
+                                font: { family: 'DM Sans', size: 10 }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(30, 27, 75, 0.85)',
+                            bodyFont: { family: 'DM Sans' },
+                            padding: 10,
+                            cornerRadius: 8
+                        }
+                    }
+                }
+            });
+            
+            document.getElementById('memberModal').classList.add('active');
+        }
+
+        function closeMemberModal() {
+            document.getElementById('memberModal').classList.remove('active');
         }
     </script>
 </body>
