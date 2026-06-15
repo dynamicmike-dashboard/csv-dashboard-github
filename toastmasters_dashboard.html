@@ -928,6 +928,29 @@
         </div>
     </div>
 
+    <!-- Roster Management Modal -->
+    <div id="rosterModal" class="modal-overlay">
+        <div class="modal-card" style="max-width: 500px;">
+            <button class="modal-close" onclick="closeRosterModal()">
+                <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+            <h2 class="modal-title">Manage Member Roster</h2>
+            <div class="modal-content">
+                <p style="font-size: 0.85rem; color: #6B7280; margin-bottom: 12px;">
+                    Uncheck members who are no longer active (e.g. have not renewed). Inactive members are excluded from charts, metrics, and leaderboards unless "Include Inactive" is enabled.
+                </p>
+                <input type="text" id="rosterSearch" placeholder="Search members..." class="filter-select" style="width: 100%; margin-bottom: 12px; padding: 8px 12px;" oninput="filterRosterList()">
+                <div id="rosterListContainer" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 8px; padding: 8px; background: rgba(255,255,255,0.3);">
+                    <!-- Dynamically populated with checkbox items -->
+                </div>
+                <div style="margin-top: 16px; display: flex; justify-content: space-between; gap: 12px;">
+                    <button class="btn btn-outline" style="padding: 6px 12px;" onclick="toggleAllRoster(true)">Mark All Active</button>
+                    <button class="btn btn-primary" style="padding: 6px 16px;" onclick="closeRosterModal()">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Help / Instructions Modal -->
     <div id="helpModal" class="modal-overlay">
         <div class="modal-card">
@@ -1044,6 +1067,10 @@
                     <!-- Dropdowns populated dynamically by JS -->
                 </div>
                 <div class="filter-actions">
+                    <button class="btn btn-outline" onclick="openRosterModal()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        Manage Roster
+                    </button>
                     <button class="btn btn-outline" onclick="resetFilters()">Reset Filters</button>
                 </div>
             </div>
@@ -1198,6 +1225,29 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         let gDateColumnKey = null;
         let gFilters = {}; // Active filters mapping {key: value}
         let gChartInstances = {};
+        let gInactiveMembers = new Set(); // Set of names marked inactive
+
+        function loadRosterFromLocalStorage() {
+            try {
+                const data = localStorage.getItem('maister_inactive_members');
+                if (data) {
+                    gInactiveMembers = new Set(JSON.parse(data));
+                } else {
+                    gInactiveMembers = new Set();
+                }
+            } catch (e) {
+                console.error("Failed to load roster from local storage", e);
+                gInactiveMembers = new Set();
+            }
+        }
+
+        function saveRosterToLocalStorage() {
+            try {
+                localStorage.setItem('maister_inactive_members', JSON.stringify(Array.from(gInactiveMembers)));
+            } catch (e) {
+                console.error("Failed to save roster to local storage", e);
+            }
+        }
 
         // Toastmasters Categorization Setup
         const TM_EXCLUDE_NAMES = /^(?:vacant|tbd|tba|n\/?a|none|guest|open|empty|speaker|evaluator|general evaluator|role|[-_.\s]+)$/i;
@@ -1325,6 +1375,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         // UI Initializations
         window.addEventListener('DOMContentLoaded', () => {
             setupDragAndDrop();
+            loadRosterFromLocalStorage();
             checkLocalStorage();
         });
 
@@ -1805,7 +1856,39 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                     endWrapper.appendChild(endInput);
                     filterContainer.appendChild(endWrapper);
                 }
-            }
+            
+            // 3. Build Include Inactive Toggle
+            const inactiveWrapper = document.createElement('div');
+            inactiveWrapper.style.display = 'flex';
+            inactiveWrapper.style.alignItems = 'center';
+            inactiveWrapper.style.gap = '8px';
+            inactiveWrapper.style.height = '100%';
+            inactiveWrapper.style.marginTop = '20px';
+            
+            const inactiveCheckbox = document.createElement('input');
+            inactiveCheckbox.type = 'checkbox';
+            inactiveCheckbox.id = 'filterIncludeInactive';
+            inactiveCheckbox.style.cursor = 'pointer';
+            inactiveCheckbox.style.width = '16px';
+            inactiveCheckbox.style.height = '16px';
+            inactiveCheckbox.checked = !!gFilters._includeInactive;
+            
+            inactiveCheckbox.addEventListener('change', (e) => {
+                gFilters._includeInactive = e.target.checked;
+                applyFilters();
+            });
+            
+            const inactiveLabel = document.createElement('label');
+            inactiveLabel.htmlFor = 'filterIncludeInactive';
+            inactiveLabel.style.fontSize = '0.85rem';
+            inactiveLabel.style.fontWeight = '700';
+            inactiveLabel.style.color = 'var(--text-muted)';
+            inactiveLabel.style.cursor = 'pointer';
+            inactiveLabel.textContent = 'Include Inactive';
+            
+            inactiveWrapper.appendChild(inactiveCheckbox);
+            inactiveWrapper.appendChild(inactiveLabel);
+            filterContainer.appendChild(inactiveWrapper);
         }
 
         // Apply filters & re-render reactive components
@@ -1862,8 +1945,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             gFilteredRecords.forEach(rec => {
                 gHeaders.forEach(h => {
                     const val = rec[h];
-                    if (val && !TM_EXCLUDE_NAMES.test(val)) {
-                        members.add(val);
+                    if (val && !TM_EXCLUDE_NAMES.test(val) && (gFilters._includeInactive || !gInactiveMembers.has(val.trim()))) {
+                        members.add(val.trim());
                         const category = classifyTMColumn(h);
                         if (category === 'speaker') speakerCount++;
                         else if (category === 'evaluator') evaluatorCount++;
@@ -1970,7 +2053,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             gFilteredRecords.forEach(rec => {
                 gHeaders.forEach(h => {
                     const val = rec[h];
-                    if (val && !TM_EXCLUDE_NAMES.test(val)) {
+                    if (val && !TM_EXCLUDE_NAMES.test(val) && (gFilters._includeInactive || !gInactiveMembers.has(val.trim()))) {
                         const cat = classifyTMColumn(h);
                         if (cat === 'speaker') categories["Speakers"]++;
                         else if (cat === 'evaluator') categories["Evaluators"]++;
@@ -2047,7 +2130,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                         // Count total roles filled as activity measure
                         let count = 0;
                         gHeaders.forEach(h => {
-                            if (h !== gDateColumnKey && rec[h] && !TM_EXCLUDE_NAMES.test(rec[h])) {
+                            if (h !== gDateColumnKey && rec[h] && !TM_EXCLUDE_NAMES.test(rec[h]) && (gFilters._includeInactive || !gInactiveMembers.has(rec[h].trim()))) {
                                 count++;
                             }
                         });
@@ -2121,7 +2204,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 gHeaders.forEach(h => {
                     const cat = classifyTMColumn(h);
                     if (cat) {
-                        roleCounts[h] = (roleCounts[h] || 0) + (rec[h] && !TM_EXCLUDE_NAMES.test(rec[h]) ? 1 : 0);
+                        roleCounts[h] = (roleCounts[h] || 0) + (rec[h] && !TM_EXCLUDE_NAMES.test(rec[h]) && (gFilters._includeInactive || !gInactiveMembers.has(rec[h].trim())) ? 1 : 0);
                     }
                 });
             });
@@ -2183,7 +2266,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             gFilteredRecords.forEach(rec => {
                 gHeaders.forEach(h => {
                     const val = rec[h];
-                    if (val && !TM_EXCLUDE_NAMES.test(val) && classifyTMColumn(h)) {
+                    if (val && !TM_EXCLUDE_NAMES.test(val) && classifyTMColumn(h) && (gFilters._includeInactive || !gInactiveMembers.has(val.trim()))) {
                         memberCounts[val] = (memberCounts[val] || 0) + 1;
                     }
                 });
@@ -2295,7 +2378,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             gFilteredRecords.forEach(rec => {
                 gHeaders.forEach(h => {
                     const val = rec[h];
-                    if (val && !TM_EXCLUDE_NAMES.test(val)) {
+                    if (val && !TM_EXCLUDE_NAMES.test(val) && (gFilters._includeInactive || !gInactiveMembers.has(val.trim()))) {
                         const cat = classifyTMColumn(h);
                         if (cat && boardStats[cat]) {
                             boardStats[cat][val] = (boardStats[cat][val] || 0) + 1;
@@ -2408,12 +2491,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                     
                     const roleCat = classifyTMColumn(h);
                     if (roleCat && val && !TM_EXCLUDE_NAMES.test(val)) {
-                        let badgeStyle = "background: rgba(139, 92, 246, 0.1); color: var(--accent-violet); border: 1px solid rgba(139, 92, 246, 0.2);";
-                        if (roleCat === 'speaker') badgeStyle = "background: rgba(236, 72, 153, 0.1); color: var(--accent-pink); border: 1px solid rgba(236, 72, 153, 0.2);";
-                        else if (roleCat === 'evaluator') badgeStyle = "background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.2);";
-                        else if (roleCat === 'facilitator') badgeStyle = "background: rgba(6, 182, 212, 0.1); color: var(--accent-cyan); border: 1px solid rgba(6, 182, 212, 0.2);";
-                        
-                        td.innerHTML = `<span class="pill-role clickable-name" style="${badgeStyle}" onclick="showMemberStats('${val.replace(/'/g, "\\\'")}')">${val}</span>`;
+                        const isInactive = gInactiveMembers.has(val.trim());
+                        if (isInactive && !gFilters._includeInactive) {
+                            td.textContent = "";
+                        } else {
+                            let badgeStyle = "background: rgba(139, 92, 246, 0.1); color: var(--accent-violet); border: 1px solid rgba(139, 92, 246, 0.2);";
+                            if (roleCat === 'speaker') badgeStyle = "background: rgba(236, 72, 153, 0.1); color: var(--accent-pink); border: 1px solid rgba(236, 72, 153, 0.2);";
+                            else if (roleCat === 'evaluator') badgeStyle = "background: rgba(16, 185, 129, 0.1); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.2);";
+                            else if (roleCat === 'facilitator') badgeStyle = "background: rgba(6, 182, 212, 0.1); color: var(--accent-cyan); border: 1px solid rgba(6, 182, 212, 0.2);";
+                            
+                            if (isInactive) {
+                                badgeStyle = "background: rgba(156, 163, 175, 0.1); color: #9CA3AF; border: 1px solid rgba(156, 163, 175, 0.2); text-decoration: line-through;";
+                            }
+                            td.innerHTML = `<span class="pill-role clickable-name" style="${badgeStyle}" onclick="showMemberStats('${val.replace(/'/g, "\\\'")}')">${val}</span>`;
+                        }
                     } else {
                         td.textContent = val !== null && val !== undefined ? val : "";
                     }
@@ -2658,6 +2749,115 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
         function closeMemberModal() {
             document.getElementById('memberModal').classList.remove('active');
+        }
+
+        // Roster Management Helpers
+        function openRosterModal() {
+            document.getElementById('rosterSearch').value = '';
+            buildRosterList();
+            document.getElementById('rosterModal').classList.add('active');
+        }
+
+        function closeRosterModal() {
+            document.getElementById('rosterModal').classList.remove('active');
+            saveRosterToLocalStorage();
+            applyFilters();
+        }
+
+        function buildRosterList(filterQuery = "") {
+            const container = document.getElementById('rosterListContainer');
+            container.innerHTML = '';
+
+            // Extract all unique member names from all parsed records
+            const members = new Set();
+            gParsedRecords.forEach(rec => {
+                gHeaders.forEach(h => {
+                    const val = rec[h];
+                    if (val && !TM_EXCLUDE_NAMES.test(val) && classifyTMColumn(h) !== null) {
+                        members.add(val.trim());
+                    }
+                });
+            });
+
+            const sortedMembers = Array.from(members).sort();
+            const query = filterQuery.trim().toLowerCase();
+
+            sortedMembers.forEach(name => {
+                if (query && !name.toLowerCase().includes(query)) return;
+
+                const isInactive = gInactiveMembers.has(name);
+                
+                const item = document.createElement('div');
+                item.style.display = 'flex';
+                item.style.alignItems = 'center';
+                item.style.gap = '8px';
+                item.style.padding = '4px 0';
+                item.style.fontSize = '0.88rem';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `roster_chk_${name}`;
+                checkbox.checked = !isInactive;
+                checkbox.style.cursor = 'pointer';
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        gInactiveMembers.delete(name);
+                    } else {
+                        gInactiveMembers.add(name);
+                    }
+                });
+
+                const label = document.createElement('label');
+                label.htmlFor = `roster_chk_${name}`;
+                label.textContent = name;
+                label.style.cursor = 'pointer';
+                if (isInactive) {
+                    label.style.color = '#9CA3AF';
+                    label.style.textDecoration = 'line-through';
+                }
+
+                checkbox.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        label.style.color = '';
+                        label.style.textDecoration = '';
+                    } else {
+                        label.style.color = '#9CA3AF';
+                        label.style.textDecoration = 'line-through';
+                    }
+                });
+
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                container.appendChild(item);
+            });
+
+            if (container.children.length === 0) {
+                container.innerHTML = `<div style="text-align: center; color: #9CA3AF; padding: 20px 0; font-size: 0.85rem;">No members found</div>`;
+            }
+        }
+
+        function filterRosterList() {
+            const query = document.getElementById('rosterSearch').value;
+            buildRosterList(query);
+        }
+
+        function toggleAllRoster(active) {
+            const members = new Set();
+            gParsedRecords.forEach(rec => {
+                gHeaders.forEach(h => {
+                    const val = rec[h];
+                    if (val && !TM_EXCLUDE_NAMES.test(val) && classifyTMColumn(h) !== null) {
+                        members.add(val.trim());
+                    }
+                });
+            });
+
+            if (active) {
+                gInactiveMembers.clear();
+            } else {
+                members.forEach(name => gInactiveMembers.add(name));
+            }
+            buildRosterList(document.getElementById('rosterSearch').value);
         }
     </script>
 </body>
